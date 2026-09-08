@@ -1,0 +1,1409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🎵 Music Playlist Manager — Connected Data Structures</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    /* ── RESET & TOKENS ──────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #090912;
+      --surface:   #111120;
+      --card:      rgba(255,255,255,0.04);
+      --card-hover:rgba(255,255,255,0.07);
+      --border:    rgba(255,255,255,0.08);
+      --border-lit:rgba(124,58,237,0.4);
+      --p1:        #7c3aed;
+      --p2:        #a855f7;
+      --p3:        #c084fc;
+      --accent:    #06b6d4;
+      --accent-glow:rgba(6,182,212,0.3);
+      --text:      #f1f5f9;
+      --muted:     #94a3b8;
+      --danger:    #f43f5e;
+      --success:   #10b981;
+      --warn:      #f59e0b;
+      --radius:    14px;
+      --glass:     blur(18px);
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      display: flex; flex-direction: column;
+    }
+
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: -1;
+      background:
+        radial-gradient(circle at 15% 15%, rgba(124,58,237,.18) 0%, transparent 45%),
+        radial-gradient(circle at 85% 85%, rgba(6,182,212,.12) 0%, transparent 45%),
+        radial-gradient(circle at 50% 50%, rgba(168,85,247,.06) 0%, transparent 60%),
+        var(--bg);
+    }
+
+    /* ── HEADER ──────────────────────────────────────── */
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 24px;
+      background: rgba(10,10,20,.88);
+      backdrop-filter: var(--glass);
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 100;
+      gap: 16px; flex-wrap: wrap;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-icon {
+      width: 40px; height: 40px; border-radius: 12px;
+      background: linear-gradient(135deg, var(--p1), var(--p2));
+      display: grid; place-items: center; font-size: 20px;
+      box-shadow: 0 4px 18px rgba(124,58,237,.45);
+    }
+    .brand-title { font-size: 1.1rem; font-weight: 700; letter-spacing: -.3px; }
+    .brand-sub { font-size: .72rem; color: var(--muted); }
+
+    .header-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+    /* STATUS PILL */
+    .status-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: .75rem; font-weight: 600; padding: 4px 12px; border-radius: 20px;
+      border: 1px solid var(--border); transition: all .3s;
+    }
+    .status-pill.online { background: rgba(16,185,129,.15); color: #34d399; border-color: rgba(16,185,129,.35); }
+    .status-pill.offline { background: rgba(244,63,94,.15); color: #f87171; border-color: rgba(244,63,94,.35); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+    /* ── WORKFLOW PIPELINE FORMAT BAR ────────────────── */
+    .pipeline-bar {
+      background: rgba(17,17,32,.75);
+      backdrop-filter: var(--glass);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; overflow-x: auto;
+    }
+    .pipeline-steps { display: flex; align-items: center; gap: 6px; }
+    .pipe-step {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 14px; border-radius: 8px; font-size: .76rem; font-weight: 600;
+      background: rgba(255,255,255,.04); border: 1px solid var(--border);
+      color: var(--muted); cursor: pointer; transition: all .2s; white-space: nowrap;
+    }
+    .pipe-step:hover { background: rgba(124,58,237,.18); color: var(--p3); border-color: var(--p2); }
+    .pipe-step.active {
+      background: linear-gradient(135deg, rgba(124,58,237,.25), rgba(6,182,212,.2));
+      color: #fff; border-color: var(--p2);
+      box-shadow: 0 0 14px rgba(124,58,237,.3);
+    }
+    .pipe-num {
+      width: 18px; height: 18px; border-radius: 50%; background: rgba(255,255,255,.1);
+      display: grid; place-items: center; font-size: .68rem; font-weight: 700;
+    }
+    .pipe-step.active .pipe-num { background: var(--p1); color: #fff; }
+    .pipe-arrow { color: var(--muted); font-size: .8rem; opacity: .5; }
+
+    .tour-btn {
+      padding: 6px 16px; border-radius: 8px; font-size: .78rem; font-weight: 600;
+      background: linear-gradient(135deg, var(--p1), var(--accent)); color: #fff;
+      border: none; cursor: pointer; display: flex; align-items: center; gap: 6px;
+      white-space: nowrap; box-shadow: 0 2px 12px rgba(124,58,237,.35);
+      transition: all .2s;
+    }
+    .tour-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(124,58,237,.6); }
+
+    /* ── LAYOUT ──────────────────────────────────────── */
+    .app-body {
+      display: grid;
+      grid-template-columns: 320px 1fr 320px;
+      flex: 1; height: calc(100vh - 118px);
+      overflow: hidden;
+    }
+
+    @media (max-width: 1150px) {
+      .app-body { grid-template-columns: 280px 1fr; }
+      .right-panel { display: none; }
+    }
+    @media (max-width: 820px) {
+      .app-body { grid-template-columns: 1fr; height: auto; }
+      .sidebar { max-height: 280px; }
+    }
+
+    /* ── LEFT: SIDEBAR PLAYLIST ──────────────────────── */
+    .sidebar {
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      background: rgba(14,14,24,.4);
+      overflow: hidden;
+    }
+    .sidebar-head {
+      padding: 14px 18px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .sidebar-head h2 { font-size: .92rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .badge {
+      background: rgba(124,58,237,.25); color: var(--p3); border: 1px solid rgba(124,58,237,.3);
+      padding: 2px 9px; border-radius: 20px; font-size: .72rem; font-weight: 600;
+    }
+    .playlist-scroll { flex: 1; overflow-y: auto; padding: 8px; }
+    .playlist-scroll::-webkit-scrollbar { width: 4px; }
+    .playlist-scroll::-webkit-scrollbar-thumb { background: var(--p1); border-radius: 4px; }
+
+    .song-card {
+      display: flex; align-items: center; gap: 9px;
+      padding: 8px 10px; border-radius: 9px; margin-bottom: 3px;
+      border: 1px solid transparent; cursor: pointer; transition: all .2s;
+    }
+    .song-card:hover { background: rgba(124,58,237,.1); border-color: rgba(124,58,237,.2); }
+    .song-card.active {
+      background: linear-gradient(135deg, rgba(124,58,237,.28), rgba(6,182,212,.15));
+      border-color: rgba(124,58,237,.5);
+    }
+    .song-index { width: 20px; font-size: .75rem; text-align: center; color: var(--muted); flex-shrink: 0; }
+    .song-card.active .song-index { color: var(--p3); font-weight: 700; }
+    .song-icon {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--p1), var(--p2));
+      display: grid; place-items: center; font-size: 13px; flex-shrink: 0;
+    }
+    .song-card.active .song-icon { animation: spin 4s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .song-meta { flex: 1; min-width: 0; }
+    .song-title-text { font-size: .8rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .song-artist-text { font-size: .7rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .song-time { font-size: .68rem; color: var(--muted); flex-shrink: 0; }
+
+    .btn-action-small {
+      padding: 3px 7px; border-radius: 6px; font-size: .65rem; font-weight: 600;
+      background: rgba(255,255,255,.05); border: 1px solid var(--border); color: var(--muted);
+      cursor: pointer; transition: all .15s; flex-shrink: 0;
+    }
+    .btn-action-small:hover { background: var(--p1); color: #fff; border-color: var(--p1); }
+
+    /* ── CENTER: MAIN INTERACTIVE STAGE ──────────────── */
+    .center-stage {
+      display: flex; flex-direction: column;
+      overflow: hidden; background: rgba(10,10,18,.3);
+    }
+
+    /* CLL LIVE POINTER VISUALIZER */
+    .cll-visualizer-bar {
+      background: rgba(14,14,26,.8);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px; display: flex; flex-direction: column; gap: 8px;
+    }
+    .cll-viz-head {
+      display: flex; align-items: center; justify-content: space-between; font-size: .75rem; font-weight: 600;
+    }
+    .cll-tag-info { color: var(--accent); display: flex; align-items: center; gap: 6px; }
+    .cll-strip {
+      display: flex; align-items: center; gap: 6px; overflow-x: auto; padding: 4px 0 8px;
+    }
+    .cll-strip::-webkit-scrollbar { height: 4px; }
+    .cll-strip::-webkit-scrollbar-thumb { background: rgba(124,58,237,.3); border-radius: 4px; }
+
+    .cll-node-box {
+      flex-shrink: 0; padding: 7px 12px; border-radius: 8px;
+      background: rgba(255,255,255,.04); border: 1px solid var(--border);
+      font-size: .73rem; text-align: center; cursor: pointer; transition: all .2s;
+      min-width: 90px;
+    }
+    .cll-node-box:hover { border-color: var(--p2); background: rgba(124,58,237,.1); }
+    .cll-node-box.current {
+      background: linear-gradient(135deg, rgba(124,58,237,.35), rgba(6,182,212,.2));
+      border-color: var(--p2); box-shadow: 0 0 12px rgba(124,58,237,.5);
+    }
+    .cll-node-box .node-badge { font-size: .62rem; color: var(--accent); font-weight: 700; text-transform: uppercase; }
+    .cll-node-box .node-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px; }
+    .cll-node-arrow { color: var(--p2); font-weight: 700; font-size: .85rem; flex-shrink: 0; }
+    .cll-loop-badge {
+      flex-shrink: 0; padding: 5px 10px; border-radius: 20px; font-size: .68rem; font-weight: 700;
+      background: rgba(6,182,212,.12); color: var(--accent); border: 1px dashed rgba(6,182,212,.4);
+      white-space: nowrap;
+    }
+
+    /* CENTER TABS */
+    .tab-nav {
+      display: flex; border-bottom: 1px solid var(--border);
+      background: rgba(0,0,0,.25); overflow-x: auto;
+    }
+    .tab-link {
+      padding: 12px 18px; font-size: .8rem; font-weight: 600;
+      color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent;
+      transition: all .2s; white-space: nowrap;
+    }
+    .tab-link:hover { color: var(--text); }
+    .tab-link.active { color: var(--p3); border-bottom-color: var(--p2); }
+
+    .stage-content { flex: 1; overflow-y: auto; padding: 20px 24px; }
+    .stage-content::-webkit-scrollbar { width: 4px; }
+    .stage-content::-webkit-scrollbar-thumb { background: var(--p1); border-radius: 4px; }
+
+    .tab-view { display: none; }
+    .tab-view.active { display: block; }
+
+    /* ── PLAYER CARD (TAB 1) ─────────────────────────── */
+    .player-deck {
+      max-width: 440px; margin: 0 auto 20px;
+      background: linear-gradient(160deg, rgba(124,58,237,.2), rgba(6,182,212,.08));
+      border: 1px solid rgba(124,58,237,.35); border-radius: var(--radius);
+      padding: 24px; display: flex; flex-direction: column; align-items: center; gap: 16px;
+      box-shadow: 0 10px 40px rgba(0,0,0,.4);
+    }
+    .deck-disc {
+      width: 140px; height: 140px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--p1), var(--p2), var(--accent));
+      display: grid; place-items: center; font-size: 48px;
+      box-shadow: 0 0 45px rgba(124,58,237,.4); position: relative;
+    }
+    .deck-disc.spinning { animation: spin 3s linear infinite; }
+    .deck-disc::after {
+      content: ''; position: absolute; width: 34px; height: 34px; border-radius: 50%;
+      background: var(--bg); border: 4px solid var(--surface);
+    }
+    .deck-title { font-size: 1.35rem; font-weight: 700; text-align: center; }
+    .deck-artist { color: var(--muted); font-size: .85rem; text-align: center; }
+    .deck-tag {
+      font-size: .74rem; color: var(--p3); background: rgba(124,58,237,.18);
+      padding: 3px 12px; border-radius: 20px; border: 1px solid rgba(124,58,237,.3);
+    }
+
+    /* PROGRESS BAR & TIMER */
+    .timer-wrap { width: 100%; display: flex; flex-direction: column; gap: 5px; }
+    .time-digits { display: flex; justify-content: space-between; font-size: .7rem; color: var(--muted); font-family: 'Fira Code', monospace; }
+    .time-track {
+      height: 6px; background: rgba(255,255,255,.1); border-radius: 4px; overflow: hidden; cursor: pointer;
+    }
+    .time-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--p1), var(--accent)); border-radius: 4px; transition: width .3s linear; }
+
+    /* AUDIO CONTROLS */
+    .controls-row { display: flex; align-items: center; gap: 14px; }
+    .deck-btn {
+      width: 44px; height: 44px; border-radius: 50%; border: none; cursor: pointer;
+      background: rgba(255,255,255,.07); color: var(--text); font-size: 17px;
+      display: grid; place-items: center; transition: all .2s;
+    }
+    .deck-btn:hover { background: rgba(124,58,237,.3); transform: scale(1.08); }
+    .deck-play {
+      width: 54px; height: 54px; font-size: 22px;
+      background: linear-gradient(135deg, var(--p1), var(--p2));
+      box-shadow: 0 4px 20px rgba(124,58,237,.55);
+    }
+    .deck-play:hover { box-shadow: 0 4px 30px rgba(124,58,237,.75); transform: scale(1.1); }
+
+    /* ── LIVE DATA STRUCTURE INSPECTOR ───────────────── */
+    .inspector-card {
+      background: rgba(17,17,32,.7); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px 20px; margin-top: 16px;
+      border-left: 4px solid var(--p1); transition: all .3s;
+    }
+    .inspector-card.highlight {
+      border-color: var(--accent); box-shadow: 0 0 20px rgba(6,182,212,.3);
+    }
+    .insp-header {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;
+    }
+    .insp-title { font-size: .82rem; font-weight: 700; color: var(--p3); display: flex; align-items: center; gap: 8px; }
+    .insp-comp {
+      font-size: .7rem; font-family: 'Fira Code', monospace;
+      padding: 2px 8px; border-radius: 6px; background: rgba(6,182,212,.15); color: var(--accent);
+    }
+    .insp-expr {
+      font-family: 'Fira Code', monospace; font-size: .78rem; color: var(--text);
+      background: rgba(0,0,0,.35); padding: 8px 12px; border-radius: 6px; margin: 6px 0;
+      border: 1px solid rgba(255,255,255,.05); word-break: break-word;
+    }
+    .insp-expl { font-size: .74rem; color: var(--muted); line-height: 1.5; }
+
+    /* ── FORMS & CARDS ──────────────────────────────── */
+    .card-box {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px; margin-bottom: 16px;
+    }
+    .card-box h3 { font-size: .92rem; font-weight: 600; margin-bottom: 12px; color: var(--p3); }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .col-full { grid-column: 1/-1; }
+
+    label { display: block; font-size: .74rem; color: var(--muted); margin-bottom: 4px; font-weight: 500; }
+    input, select {
+      width: 100%; padding: 9px 13px; border-radius: 8px;
+      background: rgba(255,255,255,.06); border: 1px solid var(--border);
+      color: var(--text); font-size: .84rem; outline: none; font-family: inherit;
+      transition: border-color .2s;
+    }
+    input:focus, select:focus { border-color: var(--p2); background: rgba(124,58,237,.08); }
+    select option { background: #1a1a2e; color: #fff; }
+
+    .btn-main {
+      padding: 9px 18px; border-radius: 8px; border: none; cursor: pointer;
+      font-size: .82rem; font-weight: 600; font-family: inherit;
+      display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+      transition: all .2s;
+    }
+    .btn-main.primary { background: linear-gradient(135deg, var(--p1), var(--p2)); color: #fff; }
+    .btn-main.primary:hover { box-shadow: 0 4px 16px rgba(124,58,237,.5); transform: translateY(-1px); }
+    .btn-main.ghost { background: rgba(255,255,255,.06); color: var(--text); border: 1px solid var(--border); }
+    .btn-main.ghost:hover { background: rgba(255,255,255,.1); border-color: var(--p2); }
+    .btn-main.danger { background: rgba(244,63,94,.18); color: var(--danger); border: 1px solid rgba(244,63,94,.3); }
+    .btn-main.danger:hover { background: var(--danger); color: #fff; }
+    .btn-main.sm { padding: 6px 12px; font-size: .76rem; border-radius: 6px; }
+
+    /* SEARCH & SORT CHIPS */
+    .chips-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .chip {
+      padding: 5px 12px; border-radius: 16px; font-size: .75rem; font-weight: 500;
+      background: rgba(255,255,255,.05); border: 1px solid var(--border); color: var(--muted);
+      cursor: pointer; transition: all .2s;
+    }
+    .chip:hover { background: rgba(124,58,237,.18); border-color: var(--p2); color: var(--p3); }
+
+    .search-card {
+      background: rgba(255,255,255,.03); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 14px; margin-bottom: 6px;
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    }
+    .search-card:hover { border-color: var(--p2); background: rgba(124,58,237,.06); }
+
+    /* ── RIGHT PANEL (QUEUE + STACK) ─────────────────── */
+    .right-panel {
+      border-left: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      background: rgba(14,14,24,.4); overflow: hidden;
+    }
+    .rp-box { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+    .rp-head {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;
+    }
+    .rp-head h3 { font-size: .84rem; font-weight: 600; color: var(--p3); }
+
+    .q-item {
+      display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 7px;
+      background: rgba(255,255,255,.03); border: 1px solid var(--border); margin-bottom: 4px;
+      font-size: .76rem;
+    }
+    .q-item-num {
+      width: 17px; height: 17px; border-radius: 50%; background: rgba(124,58,237,.3);
+      color: var(--p3); font-size: .65rem; font-weight: 700; display: grid; place-items: center;
+    }
+    .q-item-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .h-item {
+      padding: 6px 9px; border-radius: 6px; margin-bottom: 4px;
+      background: rgba(255,255,255,.02); border-left: 2px solid var(--p1);
+      font-size: .72rem; color: var(--muted); font-family: 'Fira Code', monospace;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    /* ── TOAST ───────────────────────────────────────── */
+    #toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 999;
+      padding: 12px 18px; border-radius: 10px; font-size: .84rem; font-weight: 500;
+      backdrop-filter: var(--glass); border: 1px solid var(--border);
+      transform: translateY(120%); opacity: 0; transition: all .3s cubic-bezier(.4,0,.2,1);
+      max-width: 360px; box-shadow: 0 10px 30px rgba(0,0,0,.6);
+    }
+    #toast.show { transform: translateY(0); opacity: 1; }
+    #toast.success { background: rgba(16,185,129,.18); border-color: rgba(16,185,129,.4); color: #6ee7b7; }
+    #toast.error   { background: rgba(244,63,94,.18);  border-color: rgba(244,63,94,.4);  color: #fda4af; }
+    #toast.info    { background: rgba(124,58,237,.2);  border-color: rgba(124,58,237,.5); color: #c4b5fd; }
+
+    .empty-note { text-align: center; padding: 20px 10px; color: var(--muted); font-size: .78rem; }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER ─────────────────────────────────────────── -->
+<header>
+  <div class="brand">
+    <div class="brand-icon">🎵</div>
+    <div>
+      <div class="brand-title">Music Playlist Manager</div>
+      <div class="brand-sub">Circular Linked List · FIFO Queue · LIFO Undo Stack · Algorithms</div>
+    </div>
+  </div>
+
+  <div class="header-controls">
+    <div id="conn-status" class="status-pill offline">
+      <span class="dot"></span> <span id="conn-text">Connecting...</span>
+    </div>
+    <button class="tour-btn" onclick="startWorkflowTour()">
+      ⚡ Run Complete Connected Tour
+    </button>
+    <a href="/report.html" target="_blank" class="btn-main ghost sm" style="text-decoration:none">
+      📄 Lab Report
+    </a>
+  </div>
+</header>
+
+<!-- ── WORKFLOW PIPELINE BAR (CONNECTED FORMAT) ───────── -->
+<div class="pipeline-bar">
+  <div class="pipeline-steps">
+    <div class="pipe-step active" id="pipe-step-1" onclick="switchTab('player', 1)">
+      <span class="pipe-num">1</span> 🔄 Traverse CLL
+    </div>
+    <span class="pipe-arrow">➔</span>
+
+    <div class="pipe-step" id="pipe-step-2" onclick="switchTab('queue', 2)">
+      <span class="pipe-num">2</span> 📥 FIFO Queue
+    </div>
+    <span class="pipe-arrow">➔</span>
+
+    <div class="pipe-step" id="pipe-step-3" onclick="switchTab('search', 3)">
+      <span class="pipe-num">3</span> 🔍 Search & Insert
+    </div>
+    <span class="pipe-arrow">➔</span>
+
+    <div class="pipe-step" id="pipe-step-4" onclick="switchTab('sort', 4)">
+      <span class="pipe-num">4</span> ⇅ Bubble/Insert Sort
+    </div>
+    <span class="pipe-arrow">➔</span>
+
+    <div class="pipe-step" id="pipe-step-5" onclick="switchTab('remove', 5)">
+      <span class="pipe-num">5</span> ↩ Undo Stack (LIFO)
+    </div>
+  </div>
+
+  <div style="display:flex; gap:8px; align-items:center;">
+    <button class="btn-main ghost sm" onclick="loadPlaylist()">⟳ Sync Backend</button>
+  </div>
+</div>
+
+<!-- ── MAIN APP BODY ──────────────────────────────────── -->
+<div class="app-body">
+
+  <!-- LEFT: Circular Playlist Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <h2>📋 Circular Playlist</h2>
+      <span class="badge" id="song-count">0 songs</span>
+    </div>
+    <div class="playlist-scroll" id="playlist-items">
+      <div class="empty-note">Loading songs from backend...</div>
+    </div>
+  </aside>
+
+  <!-- CENTER: Interactive Stage & Tabs -->
+  <main class="center-stage">
+
+    <!-- CLL LIVE POINTER VISUALIZER STRIP -->
+    <div class="cll-visualizer-bar">
+      <div class="cll-viz-head">
+        <span class="cll-tag-info">🔄 <strong>Circular Linked List Invariant:</strong> tail.next ➔ head</span>
+        <span id="cll-wrap-indicator" style="color:var(--p3); font-size:.72rem; font-weight:700;"></span>
+      </div>
+      <div class="cll-strip" id="cll-visual-nodes">
+        <!-- Visual nodes populated dynamically -->
+      </div>
+    </div>
+
+    <!-- TABS -->
+    <nav class="tab-nav">
+      <div class="tab-link active" id="tab-btn-player" onclick="switchTab('player', 1)">▶ Live Player</div>
+      <div class="tab-link"        id="tab-btn-add"    onclick="switchTab('add', 3)">＋ Insert Song</div>
+      <div class="tab-link"        id="tab-btn-queue"  onclick="switchTab('queue', 2)">📥 Queue Manager</div>
+      <div class="tab-link"        id="tab-btn-search" onclick="switchTab('search', 3)">🔍 Search Engine</div>
+      <div class="tab-link"        id="tab-btn-sort"   onclick="switchTab('sort', 4)">⇅ Sorting Engine</div>
+      <div class="tab-link"        id="tab-btn-remove" onclick="switchTab('remove', 5)">✕ Remove & Undo</div>
+    </nav>
+
+    <div class="stage-content">
+
+      <!-- TAB 1: PLAYER -->
+      <div class="tab-view active" id="view-player">
+        <div class="player-deck">
+          <div class="deck-disc" id="deck-disc">🎵</div>
+          <div class="deck-title" id="np-title">Loading...</div>
+          <div class="deck-artist" id="np-artist">—</div>
+          <div class="deck-tag" id="np-genre-dur">Pop · 3.5 min</div>
+
+          <!-- Progress bar with real-time timer -->
+          <div class="timer-wrap">
+            <div class="time-track" onclick="scrubTrack(event)">
+              <div class="time-fill" id="track-fill"></div>
+            </div>
+            <div class="time-digits">
+              <span id="curr-time">0:00</span>
+              <span id="total-time">3:20</span>
+            </div>
+          </div>
+
+          <!-- Controls -->
+          <div class="controls-row">
+            <button class="deck-btn" onclick="prevSong()" title="Previous Node (CLL Backward Traversal)">⏮</button>
+            <button class="deck-btn deck-play" id="play-pause-btn" onclick="togglePlayPause()" title="Play / Pause Web Audio">▶</button>
+            <button class="deck-btn" onclick="nextSong()" title="Next Node (CLL Forward Traversal)">⏭</button>
+          </div>
+
+          <div style="display:flex; gap:8px; width:100%; margin-top:4px">
+            <button class="btn-main ghost sm" style="flex:1" onclick="queueCurrentSong()">＋ Add to Queue</button>
+            <button class="btn-main ghost sm" style="flex:1" onclick="switchTab('sort', 4)">⇅ Sort Playlist</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: INSERT SONG -->
+      <div class="tab-view" id="view-add">
+        <div class="card-box">
+          <h3>＋ Insert Node into Circular Linked List</h3>
+          <div class="grid-2">
+            <div class="col-full">
+              <label>Song Title *</label>
+              <input type="text" id="add-title" placeholder="e.g. Bohemian Rhapsody"/>
+            </div>
+            <div>
+              <label>Artist *</label>
+              <input type="text" id="add-artist" placeholder="e.g. Queen"/>
+            </div>
+            <div>
+              <label>Genre</label>
+              <input type="text" id="add-genre" placeholder="e.g. Rock, Pop, Jazz"/>
+            </div>
+            <div>
+              <label>Duration (Minutes)</label>
+              <input type="number" id="add-duration" placeholder="e.g. 5.55" step="0.01" value="4.0"/>
+            </div>
+            <div>
+              <label>CLL Insertion Position</label>
+              <select id="add-position" onchange="togglePosWrap()">
+                <option value="">End (Tail) — O(1) via Tail pointer</option>
+                <option value="0">Beginning (Head) — O(1)</option>
+                <option value="custom">Custom Position (O(n) Traversal)…</option>
+              </select>
+            </div>
+            <div id="custom-pos-wrap" style="display:none">
+              <label>Position Number (1-based index)</label>
+              <input type="number" id="add-pos-num" placeholder="e.g. 3" min="1" value="2"/>
+            </div>
+          </div>
+          <br/>
+          <button class="btn-main primary" onclick="submitAddSong()">＋ Insert Node into Circular List</button>
+        </div>
+      </div>
+
+      <!-- TAB 3: QUEUE MANAGER -->
+      <div class="tab-view" id="view-queue">
+        <div class="card-box">
+          <h3>📥 FIFO Song Request Queue (Circular Array)</h3>
+          <p style="font-size:.78rem; color:var(--muted); margin-bottom:12px;">
+            Songs are requested in FIFO (First-In First-Out) order. Clicking "Play Next" dequeues the front item and sets it as the active node in the Circular Linked List!
+          </p>
+          <div style="display:flex; gap:8px; margin-bottom:14px;">
+            <input type="text" id="queue-input-main" list="playlist-titles" placeholder="Search playlist or type any custom song…" onkeydown="if(event.key==='Enter')enqueueFromMain()"/>
+            <button class="btn-main primary sm" onclick="enqueueFromMain()">＋ Enqueue</button>
+          </div>
+          <div style="display:flex; gap:10px;">
+            <button class="btn-main primary" onclick="playNextRequested()">
+              ▶ Play Next from Queue (FIFO Dequeue)
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 4: SEARCH ENGINE -->
+      <div class="tab-view" id="view-search">
+        <div class="card-box">
+          <h3>🔍 Search Songs (Algorithms)</h3>
+          <div style="display:flex; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:200px;">
+              <label>Search Query</label>
+              <input type="text" id="search-query" placeholder="Type title, artist, or genre…" oninput="onSearchInput()" onkeydown="if(event.key==='Enter')executeSearch()"/>
+            </div>
+            <div style="width:230px;">
+              <label>Algorithm</label>
+              <select id="search-algorithm" onchange="executeSearch()">
+                <option value="smart">✨ Smart Search (Title / Artist / Genre)</option>
+                <option value="linear_title">Linear Search (Title O(n))</option>
+                <option value="binary_title">Binary Search (Title O(log n))</option>
+                <option value="artist">Linear Search (Artist)</option>
+                <option value="genre">Linear Search (Genre)</option>
+                <option value="binary_duration">Duration Search</option>
+              </select>
+            </div>
+            <button class="btn-main primary" onclick="executeSearch()" style="align-self:flex-end;">Search</button>
+          </div>
+
+          <div class="chips-row">
+            <span style="font-size:.74rem; color:var(--muted)">Quick Test:</span>
+            <span class="chip" onclick="applyQuickSearch('Rock','genre')">🎸 Rock</span>
+            <span class="chip" onclick="applyQuickSearch('Pop','genre')">🎤 Pop</span>
+            <span class="chip" onclick="applyQuickSearch('Queen','artist')">👑 Queen</span>
+            <span class="chip" onclick="applyQuickSearch('The Weeknd','artist')">🌟 The Weeknd</span>
+            <span class="chip" onclick="applyQuickSearch('Hotel','linear_title')">🏨 Hotel</span>
+            <span class="chip" onclick="applyQuickSearch('Blinding','linear_title')">✨ Blinding</span>
+          </div>
+
+          <div id="search-output" style="margin-top:14px;"></div>
+        </div>
+      </div>
+
+      <!-- TAB 5: SORTING ENGINE -->
+      <div class="tab-view" id="view-sort">
+        <div class="card-box">
+          <h3>⇅ Sorting Engine & Circular List Rebuild</h3>
+          <p style="font-size:.8rem; color:var(--muted); margin-bottom:14px;">
+            Sorting sorts the song collection and sequentially relinks all node pointers (`node[i].next = node[i+1]`), guaranteeing the circular invariant (`tail.next = head`).
+          </p>
+          <div class="chips-row" style="margin-bottom:14px;">
+            <button class="btn-main ghost" onclick="executeSort('title')">🔤 Bubble Sort (Title Alphabetical)</button>
+            <button class="btn-main ghost" onclick="executeSort('duration')">⏱ Insertion Sort (Duration Ascending)</button>
+            <button class="btn-main ghost" onclick="executeSort('artist')">👤 Selection Sort (Artist Name)</button>
+          </div>
+          <div id="sort-metrics" style="display:none; padding:12px; border-radius:8px; background:rgba(6,182,212,.1); border:1px solid rgba(6,182,212,.2); font-size:.8rem; color:var(--accent);"></div>
+        </div>
+      </div>
+
+      <!-- TAB 6: REMOVE & UNDO -->
+      <div class="tab-view" id="view-remove">
+        <div class="card-box">
+          <h3>✕ Remove Song from Circular Linked List</h3>
+          <div style="display:flex; gap:10px; align-items:flex-end;">
+            <div style="flex:1;">
+              <label>Select Song to Remove</label>
+              <input type="text" id="remove-song-input" list="playlist-titles" placeholder="Pick or type song title…"/>
+            </div>
+            <button class="btn-main danger" onclick="submitRemoveSong()">Remove Node</button>
+          </div>
+        </div>
+
+        <div class="card-box">
+          <h3>↩ LIFO Undo Stack</h3>
+          <p style="font-size:.8rem; color:var(--muted); margin-bottom:12px;">
+            Every removal or addition is pushed onto the Undo Stack. Clicking "Undo" pops the top action and immediately restores the node in the Circular Linked List!
+          </p>
+          <button class="btn-main primary" onclick="submitUndo()">↩ Undo Last Action (Stack Pop)</button>
+        </div>
+      </div>
+
+      <!-- LIVE DATA STRUCTURE INSPECTOR (ALWAYS VISIBLE REACTION BOX) -->
+      <div class="inspector-card" id="ds-inspector">
+        <div class="insp-header">
+          <div class="insp-title">
+            <span>⚡ Live Data Structure Execution Inspector</span>
+          </div>
+          <span class="insp-comp" id="insp-complexity">O(1) Operation</span>
+        </div>
+        <div class="insp-expr" id="insp-pointer">Node('Tail') ──▶ [ Node('Current') ] ──▶ Node('Next')</div>
+        <div class="insp-expl" id="insp-text">Connected pipeline ready. Click any button to observe real-time Data Structure execution and pointer mutations.</div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- RIGHT: Request Queue (FIFO) & Undo Stack (LIFO) -->
+  <aside class="right-panel">
+    <div class="rp-box" style="flex-shrink:0">
+      <div class="rp-head">
+        <h3>🎵 FIFO Request Queue</h3>
+        <span class="badge" id="queue-badge-count">0</span>
+      </div>
+      <div style="display:flex; gap:6px; margin-bottom:8px;">
+        <input type="text" id="rp-queue-input" list="playlist-titles" placeholder="Queue song…" style="font-size:.76rem; padding:6px 10px;" onkeydown="if(event.key==='Enter')enqueueFromSide()"/>
+        <button class="btn-main primary sm" onclick="enqueueFromSide()">+</button>
+      </div>
+      <div id="rp-queue-items" style="max-height:180px; overflow-y:auto;">
+        <div class="empty-note">Queue is empty</div>
+      </div>
+      <button class="btn-main ghost sm" onclick="playNextRequested()" style="width:100%; margin-top:8px;">
+        ▶ Play Next (FIFO)
+      </button>
+    </div>
+
+    <div class="rp-box" style="flex:1; overflow-y:auto">
+      <div class="rp-head">
+        <h3>↩ Undo Stack (LIFO)</h3>
+        <span class="badge" id="stack-badge-count">0</span>
+      </div>
+      <div id="rp-stack-items">
+        <div class="empty-note">No actions on stack</div>
+      </div>
+    </div>
+  </aside>
+
+</div>
+
+<datalist id="playlist-titles"></datalist>
+<div id="toast"></div>
+
+<!-- ── JAVASCRIPT LOGIC ───────────────────────────────── -->
+<script>
+const API = window.location.protocol.startsWith('http')
+  ? `${window.location.origin}/api`
+  : 'http://127.0.0.1:5000/api';
+
+let currentSong = null;
+let playlistSongs = [];
+let isPlaying = false;
+let audioCtx = null;
+let synthInterval = null;
+let trackSeconds = 0;
+let trackTotalSeconds = 200;
+let progressTimer = null;
+let searchDebounceTimer = null;
+
+// ── TOAST ──────────────────────────────────────────────
+function toast(msg, type='info') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `show ${type}`;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.className = ''; }, 3200);
+}
+
+// ── INSPECTOR UPDATE (REACTION ENGINE) ──────────────────
+function updateInspector(title, pointer, text, complexity="O(1)") {
+  const card = document.getElementById('ds-inspector');
+  document.getElementById('insp-complexity').textContent = complexity;
+  document.getElementById('insp-pointer').textContent = pointer;
+  document.getElementById('insp-text').textContent = text;
+  card.classList.add('highlight');
+  setTimeout(() => card.classList.remove('highlight'), 800);
+}
+
+// ── CONNECTION STATUS ───────────────────────────────────
+function setOnlineStatus(online) {
+  const pill = document.getElementById('conn-status');
+  const txt  = document.getElementById('conn-text');
+  if (online) {
+    pill.className = 'status-pill online';
+    txt.textContent = 'Backend Connected';
+  } else {
+    pill.className = 'status-pill offline';
+    txt.textContent = 'Server Offline';
+  }
+}
+
+// ── TAB & PIPELINE SWITCHING ────────────────────────────
+function switchTab(name, stepNum=1) {
+  document.querySelectorAll('.tab-link').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.pipe-step').forEach(p => p.classList.remove('active'));
+
+  const link = document.getElementById(`tab-btn-${name}`);
+  const view = document.getElementById(`view-${name}`);
+  const pipe = document.getElementById(`pipe-step-${stepNum}`);
+
+  if (link) link.classList.add('active');
+  if (view) view.classList.add('active');
+  if (pipe) pipe.classList.add('active');
+
+  if (name === 'search') executeSearch();
+}
+
+function togglePosWrap() {
+  const sel = document.getElementById('add-position').value;
+  document.getElementById('custom-pos-wrap').style.display = (sel === 'custom') ? 'block' : 'none';
+}
+
+// ── AUDIO SYNTHESIZER (WEB AUDIO API) ───────────────────
+function initAudio() {
+  if (!audioCtx) {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (AudioContext) audioCtx = new AudioContext();
+  }
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+}
+
+function playSynthesizerChime(frequency=440, type='sine', duration=0.4) {
+  try {
+    initAudio();
+    if (!audioCtx) return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+  } catch(e) {}
+}
+
+function playChordBeat() {
+  const chords = [261.63, 329.63, 392.00, 523.25]; // C major notes
+  const note = chords[Math.floor(Math.random() * chords.length)];
+  playSynthesizerChime(note, 'triangle', 0.6);
+}
+
+function togglePlayPause() {
+  initAudio();
+  if (isPlaying) {
+    pausePlayback();
+  } else {
+    startPlayback();
+  }
+}
+
+function startPlayback() {
+  isPlaying = true;
+  document.getElementById('play-pause-btn').textContent = '⏸';
+  document.getElementById('deck-disc').classList.add('spinning');
+  clearInterval(synthInterval);
+  synthInterval = setInterval(playChordBeat, 1800);
+  playChordBeat();
+
+  clearInterval(progressTimer);
+  progressTimer = setInterval(() => {
+    trackSeconds++;
+    if (trackSeconds >= trackTotalSeconds) {
+      trackSeconds = 0;
+      nextSong();
+    }
+    updateTimerDisplay();
+  }, 1000);
+  toast(`▶ Playing "${currentSong ? currentSong.title : 'Playlist'}"`, 'info');
+}
+
+function pausePlayback() {
+  isPlaying = false;
+  document.getElementById('play-pause-btn').textContent = '▶';
+  document.getElementById('deck-disc').classList.remove('spinning');
+  clearInterval(synthInterval);
+  clearInterval(progressTimer);
+  toast('⏸ Playback Paused', 'info');
+}
+
+function updateTimerDisplay() {
+  const m = Math.floor(trackSeconds / 60);
+  const s = String(trackSeconds % 60).padStart(2, '0');
+  document.getElementById('curr-time').textContent = `${m}:${s}`;
+  const pct = Math.min(100, (trackSeconds / trackTotalSeconds) * 100);
+  document.getElementById('track-fill').style.width = `${pct}%`;
+}
+
+function scrubTrack(e) {
+  const rect = e.currentTarget.getBoundingClientRect();
+  const clickX = e.clientX - rect.left;
+  const pct = clickX / rect.width;
+  trackSeconds = Math.floor(pct * trackTotalSeconds);
+  updateTimerDisplay();
+}
+
+// ── SYNC & LOAD PLAYLIST ────────────────────────────────
+async function loadPlaylist() {
+  try {
+    const res = await fetch(`${API}/playlist`);
+    if (!res.ok) throw new Error('API down');
+    const data = await res.json();
+    setOnlineStatus(true);
+    playlistSongs = data.songs;
+    document.getElementById('song-count').textContent = `${data.total} songs`;
+    renderSidebarPlaylist(data.songs);
+    renderVisualNodes(data.songs, data.cll);
+    populateDatalist(data.songs);
+    loadQueue();
+    loadHistory();
+
+    if (!currentSong) fetchNowPlaying();
+  } catch(e) {
+    setOnlineStatus(false);
+    toast('Cannot connect to Python Flask backend', 'error');
+  }
+}
+
+function populateDatalist(songs) {
+  const dl = document.getElementById('playlist-titles');
+  if (dl) dl.innerHTML = songs.map(s => `<option value="${escapeHtml(s.title)}">${escapeHtml(s.artist)}</option>`).join('');
+}
+
+function renderSidebarPlaylist(songs) {
+  const container = document.getElementById('playlist-items');
+  if (!songs || !songs.length) {
+    container.innerHTML = '<div class="empty-note">Playlist is empty</div>';
+    return;
+  }
+  container.innerHTML = songs.map((s, idx) => `
+    <div class="song-card ${(currentSong && currentSong.title === s.title) ? 'active' : ''}" onclick="selectSong('${escapeQuotes(s.title)}')">
+      <span class="song-index">${idx + 1}</span>
+      <div class="song-icon">🎵</div>
+      <div class="song-meta">
+        <div class="song-title-text">${escapeHtml(s.title)}</div>
+        <div class="song-artist-text">${escapeHtml(s.artist)} · ${escapeHtml(s.genre)}</div>
+      </div>
+      <span class="song-time">${s.duration}m</span>
+      <button class="btn-action-small" title="Add to FIFO Queue" onclick="event.stopPropagation(); enqueueDirect('${escapeQuotes(s.title)}')">＋Q</button>
+      <button class="btn-action-small" title="Delete from CLL" onclick="event.stopPropagation(); deleteDirect('${escapeQuotes(s.title)}')">✕</button>
+    </div>`).join('');
+}
+
+function renderVisualNodes(songs, cll) {
+  const strip = document.getElementById('cll-visual-nodes');
+  if (!songs || !songs.length) {
+    strip.innerHTML = '<div class="empty-note">No nodes in Circular List</div>';
+    return;
+  }
+
+  let html = '';
+  songs.forEach((s, idx) => {
+    const isCurr = (currentSong && currentSong.title === s.title);
+    const isHead = (idx === 0);
+    const isTail = (idx === songs.length - 1);
+
+    let badgeText = '';
+    if (isHead) badgeText = 'HEAD';
+    if (isTail) badgeText = 'TAIL';
+    if (isHead && isTail) badgeText = 'HEAD=TAIL';
+
+    html += `
+      <div class="cll-node-box ${isCurr ? 'current' : ''}" onclick="selectSong('${escapeQuotes(s.title)}')">
+        <div class="node-badge">${badgeText ? badgeText : `NODE ${idx+1}`}</div>
+        <div class="node-name">🎵 ${escapeHtml(s.title)}</div>
+      </div>
+      <span class="cll-node-arrow">➔</span>
+    `;
+  });
+
+  html += `<div class="cll-loop-badge">🔄 tail.next ➔ head (Loop)</div>`;
+  strip.innerHTML = html;
+
+  if (cll && cll.wrap_around) {
+    const wrapLbl = document.getElementById('cll-wrap-indicator');
+    wrapLbl.textContent = '⚡ Circular Loop Wrap-around!';
+    setTimeout(() => { wrapLbl.textContent = ''; }, 3000);
+  }
+}
+
+// ── PLAYBACK NAVIGATION (CLL TRAVERSAL) ──────────────────
+async function fetchNowPlaying() {
+  try {
+    const r = await fetch(`${API}/now-playing`);
+    if (!r.ok) return;
+    const s = await r.json();
+    applyNowPlaying(s);
+  } catch(e) {}
+}
+
+function applyNowPlaying(s) {
+  if (!s) return;
+  currentSong = s;
+  document.getElementById('np-title').textContent = s.title;
+  document.getElementById('np-artist').textContent = s.artist;
+  document.getElementById('np-genre-dur').textContent = `${s.genre} · ${s.duration} min`;
+  trackTotalSeconds = Math.max(60, Math.round(s.duration * 60));
+  document.getElementById('total-time').textContent = `${Math.floor(trackTotalSeconds/60)}:${String(trackTotalSeconds%60).padStart(2,'0')}`;
+  trackSeconds = 0;
+  updateTimerDisplay();
+
+  renderSidebarPlaylist(playlistSongs);
+  renderVisualNodes(playlistSongs, s.cll);
+
+  if (s.cll) {
+    updateInspector(
+      "Circular Linked List Traversal",
+      s.cll.pointer_expr,
+      `Active pointer shifted to Node('${s.title}'). Next node in cycle: Node('${s.cll.next_title}'). ${s.cll.wrap_around ? 'Notice: Traversed from Tail back to Head (Circular Invariant)!' : ''}`,
+      "O(1) Pointer Update"
+    );
+  }
+}
+
+async function nextSong() {
+  playSynthesizerChime(523.25, 'sine', 0.2);
+  try {
+    const res = await fetch(`${API}/next`, {method:'POST'});
+    const data = await res.json();
+    applyNowPlaying(data);
+    if (data.ds_reaction) {
+      updateInspector(
+        data.ds_reaction.operation,
+        data.cll ? data.cll.pointer_expr : 'Node(curr) -> Node(next)',
+        `${data.ds_reaction.pointers}. ${data.ds_reaction.circular_wrap}`,
+        data.ds_reaction.complexity
+      );
+    }
+  } catch(e) { toast('Error advancing song', 'error'); }
+}
+
+async function prevSong() {
+  playSynthesizerChime(392.00, 'sine', 0.2);
+  try {
+    const res = await fetch(`${API}/prev`, {method:'POST'});
+    const data = await res.json();
+    applyNowPlaying(data);
+    if (data.ds_reaction) {
+      updateInspector(
+        data.ds_reaction.operation,
+        data.cll ? data.cll.pointer_expr : 'Node(prev) <- Node(curr)',
+        `${data.ds_reaction.pointers}. ${data.ds_reaction.circular_wrap}`,
+        data.ds_reaction.complexity
+      );
+    }
+  } catch(e) { toast('Error going back', 'error'); }
+}
+
+async function selectSong(title) {
+  playSynthesizerChime(440, 'sine', 0.15);
+  try {
+    const res = await fetch(`${API}/select`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title})
+    });
+    const data = await res.json();
+    if (res.ok) {
+      applyNowPlaying(data);
+      switchTab('player', 1);
+      toast(`▶ Playing: "${data.title}"`, 'success');
+    }
+  } catch(e) {}
+}
+
+// ── ADD / INSERT NODE (CLL) ─────────────────────────────
+async function submitAddSong() {
+  const title = document.getElementById('add-title').value.trim();
+  const artist = document.getElementById('add-artist').value.trim();
+  const genre = document.getElementById('add-genre').value.trim() || 'General';
+  const duration = parseFloat(document.getElementById('add-duration').value) || 3.5;
+  const posVal = document.getElementById('add-position').value;
+
+  if (!title) { toast('Please enter a song title', 'error'); return; }
+  if (!artist) { toast('Please enter an artist name', 'error'); return; }
+
+  let position = null;
+  if (posVal === '0') position = 0;
+  if (posVal === 'custom') position = parseInt(document.getElementById('add-pos-num').value) || 1;
+
+  try {
+    const res = await fetch(`${API}/add`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({title, artist, genre, duration, position})
+    });
+    const data = await res.json();
+    if (res.ok) {
+      toast(data.message, 'success');
+      playSynthesizerChime(659.25, 'triangle', 0.3);
+      document.getElementById('add-title').value = '';
+      document.getElementById('add-artist').value = '';
+      loadPlaylist();
+      if (data.ds_reaction) {
+        updateInspector(
+          data.ds_reaction.operation,
+          data.ds_reaction.pointers,
+          `${data.message}. Stack updated: ${data.ds_reaction.undo_pushed}`,
+          data.ds_reaction.complexity
+        );
+      }
+    } else {
+      toast(data.error || 'Failed to add', 'error');
+    }
+  } catch(e) { toast('Network error', 'error'); }
+}
+
+// ── REMOVE & UNDO ───────────────────────────────────────
+async function deleteDirect(title) {
+  document.getElementById('remove-song-input').value = title;
+  await submitRemoveSong();
+}
+
+async function submitRemoveSong() {
+  const title = document.getElementById('remove-song-input').value.trim();
+  if (!title) { toast('Please select a song to remove', 'error'); return; }
+
+  try {
+    const res = await fetch(`${API}/remove`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title})
+    });
+    const data = await res.json();
+    if (res.ok) {
+      toast(data.message, 'success');
+      playSynthesizerChime(220, 'sawtooth', 0.25);
+      document.getElementById('remove-song-input').value = '';
+      loadPlaylist();
+      if (data.ds_reaction) {
+        updateInspector(
+          data.ds_reaction.operation,
+          data.ds_reaction.pointers,
+          `${data.message}. ${data.ds_reaction.undo_pushed}`,
+          data.ds_reaction.complexity
+        );
+      }
+    } else {
+      toast(data.error || 'Delete failed', 'error');
+    }
+  } catch(e) { toast('Error deleting song', 'error'); }
+}
+
+async function submitUndo() {
+  try {
+    const res = await fetch(`${API}/undo`, {method:'POST'});
+    const data = await res.json();
+    if (res.ok) {
+      toast(data.message, 'info');
+      playSynthesizerChime(587.33, 'sine', 0.3);
+      loadPlaylist();
+      if (data.ds_reaction) {
+        updateInspector(
+          data.ds_reaction.operation,
+          data.ds_reaction.pointers,
+          `${data.message}. Remaining Stack elements: ${data.ds_reaction.stack_remaining}`,
+          data.ds_reaction.complexity
+        );
+      }
+    } else {
+      toast(data.error || 'Nothing to undo', 'error');
+    }
+  } catch(e) { toast('Undo failed', 'error'); }
+}
+
+// ── QUEUE (FIFO) ────────────────────────────────────────
+function queueCurrentSong() {
+  if (currentSong) enqueueDirect(currentSong.title);
+}
+
+async function enqueueDirect(title) {
+  try {
+    const res = await fetch(`${API}/queue/request`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title})
+    });
+    const data = await res.json();
+    if (res.ok) {
+      toast(data.message, 'success');
+      playSynthesizerChime(440, 'triangle', 0.2);
+      loadQueue();
+      if (data.ds_reaction) {
+        updateInspector(
+          data.ds_reaction.operation,
+          data.ds_reaction.pointers,
+          `${data.message}. Front Index: ${data.ds_reaction.front_idx}, Rear Index: ${data.ds_reaction.rear_idx}`,
+          data.ds_reaction.complexity
+        );
+      }
+    } else {
+      toast(data.error || 'Queue is full', 'error');
+    }
+  } catch(e) { toast('Queue error', 'error'); }
+}
+
+function enqueueFromMain() {
+  const val = document.getElementById('queue-input-main').value.trim();
+  if (!val) { toast('Enter a song title', 'error'); return; }
+  enqueueDirect(val);
+  document.getElementById('queue-input-main').value = '';
+}
+
+function enqueueFromSide() {
+  const val = document.getElementById('rp-queue-input').value.trim();
+  if (!val) return;
+  enqueueDirect(val);
+  document.getElementById('rp-queue-input').value = '';
+}
+
+async function playNextRequested() {
+  try {
+    const res = await fetch(`${API}/queue/play-next`, {method:'POST'});
+    const data = await res.json();
+    if (res.ok) {
+      toast(data.message, 'success');
+      playSynthesizerChime(659.25, 'sine', 0.35);
+      if (data.song) applyNowPlaying(data.song);
+      loadQueue();
+      if (data.ds_reaction) {
+        updateInspector(
+          data.ds_reaction.operation,
+          data.ds_reaction.pointers,
+          `${data.message}. Handover: ${data.ds_reaction.handover || 'Transferred from Queue to CLL'}`,
+          data.ds_reaction.complexity
+        );
+      }
+    }
+  } catch(e) { toast('Error playing next', 'error'); }
+}
+
+async function loadQueue() {
+  try {
+    const res = await fetch(`${API}/queue`);
+    const data = await res.json();
+    document.getElementById('queue-badge-count').textContent = data.size;
+
+    const el = document.getElementById('rp-queue-items');
+    if (!data.queue.length) {
+      el.innerHTML = '<div class="empty-note">Queue is empty</div>';
+    } else {
+      el.innerHTML = data.queue.map((t, i) => `
+        <div class="q-item">
+          <span class="q-item-num">${i+1}</span>
+          <span class="q-item-title">🎵 ${escapeHtml(t)}</span>
+          <button class="btn-action-small" onclick="selectSong('${escapeQuotes(t)}')">▶</button>
+        </div>`).join('');
+    }
+  } catch(e) {}
+}
+
+// ── UNDO HISTORY (STACK LIFO) ───────────────────────────
+async function loadHistory() {
+  try {
+    const res = await fetch(`${API}/history`);
+    const data = await res.json();
+    document.getElementById('stack-badge-count').textContent = data.stack_size;
+
+    const el = document.getElementById('rp-stack-items');
+    if (!data.history.length) {
+      el.innerHTML = '<div class="empty-note">No actions on stack</div>';
+    } else {
+      el.innerHTML = data.history.map(h => `<div class="h-item">↩ ${escapeHtml(h)}</div>`).join('');
+    }
+  } catch(e) {}
+}
+
+// ── SEARCHING ENGINE ────────────────────────────────────
+function onSearchInput() {
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(executeSearch, 220);
+}
+
+function applyQuickSearch(q, type) {
+  document.getElementById('search-query').value = q;
+  document.getElementById('search-algorithm').value = type;
+  executeSearch();
+}
+
+async function executeSearch() {
+  const q = document.getElementById('search-query').value.trim();
+  const type = document.getElementById('search-algorithm').value;
+  const out = document.getElementById('search-output');
+
+  try {
+    const res = await fetch(`${API}/search?q=${encodeURIComponent(q)}&type=${type}`);
+    const data = await res.json();
+
+    if (!res.ok) {
+      out.innerHTML = `<div class="empty-note" style="color:var(--danger)">${data.error}</div>`;
+      return;
+    }
+
+    let html = `<div style="font-size:.78rem; font-weight:700; color:var(--accent); margin-bottom:10px;">
+      🔍 ${data.method} · ${data.comparisons} Comparison(s) · ${data.results.length} Match(es)
+    </div>`;
+
+    if (!data.results.length) {
+      html += '<div class="empty-note">No matching songs found</div>';
+    } else {
+      html += data.results.map(s => `
+        <div class="search-card">
+          <div>
+            <div style="font-weight:600; font-size:.85rem; color:var(--p3)">🎵 ${escapeHtml(s.title)}</div>
+            <div style="font-size:.72rem; color:var(--muted)">${escapeHtml(s.artist)} · ${escapeHtml(s.genre)} · ${s.duration} min</div>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button class="btn-main primary sm" onclick="selectSong('${escapeQuotes(s.title)}')">▶ Play</button>
+            <button class="btn-main ghost sm" onclick="enqueueDirect('${escapeQuotes(s.title)}')">＋ Queue</button>
+          </div>
+        </div>`).join('');
+    }
+    out.innerHTML = html;
+
+    if (data.ds_reaction) {
+      updateInspector(
+        data.ds_reaction.operation,
+        data.ds_reaction.formula,
+        `Examined ${data.comparisons} elements. Found ${data.results.length} matching nodes in collection.`,
+        data.ds_reaction.complexity
+      );
+    }
+  } catch(e) {
+    out.innerHTML = '<div class="empty-note">Search unavailable</div>';
+  }
+}
+
+// ── SORTING ENGINE ──────────────────────────────────────
+async function executeSort(by) {
+  try {
+    const res = await fetch(`${API}/sort`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({by})
+    });
+    const data = await res.json();
+    if (res.ok) {
+      toast(data.message, 'success');
+      playSynthesizerChime(523.25, 'triangle', 0.4);
+      playlistSongs = data.songs;
+      renderSidebarPlaylist(data.songs);
+      renderVisualNodes(data.songs, data.cll);
+
+      const metricBox = document.getElementById('sort-metrics');
+      metricBox.style.display = 'block';
+      metricBox.innerHTML = `<strong>✔ Sorted via ${data.ds_reaction.algorithm}:</strong> ${data.comparisons} Comparisons, ${data.swaps} Swaps/Shifts. ${data.ds_reaction.rebuild}`;
+
+      updateInspector(
+        data.ds_reaction.operation,
+        data.ds_reaction.stats,
+        `${data.message}. Rebuild: ${data.ds_reaction.rebuild}`,
+        data.ds_reaction.complexity
+      );
+    }
+  } catch(e) { toast('Sort failed', 'error'); }
+}
+
+// ── GUIDED CONNECTED WORKFLOW TOUR ──────────────────────
+async function startWorkflowTour() {
+  toast('🚀 Launching Guided Connected DS Tour!', 'info');
+
+  // Step 1: Traverse CLL
+  switchTab('player', 1);
+  updateInspector("Tour Stage 1: Traverse CLL", "current = current.next", "Step 1: Advancing through the Circular Linked List...", "O(1)");
+  await sleep(1500);
+  await nextSong();
+  await sleep(1500);
+
+  // Step 2: Enqueue Request
+  switchTab('queue', 2);
+  updateInspector("Tour Stage 2: FIFO Enqueue", "rear = (rear + 1) % capacity", "Step 2: Enqueueing 'Hotel California' into Request Queue...", "O(1)");
+  await sleep(1200);
+  await enqueueDirect('Hotel California');
+  await sleep(1500);
+
+  // Step 3: Dequeue & Handover
+  updateInspector("Tour Stage 3: Queue Handover", "front = (front + 1) % cap -> CLL.current = dequeued", "Step 3: Dequeueing front request and transitioning directly to CLL playback...", "O(1)");
+  await sleep(1200);
+  await playNextRequested();
+  await sleep(1800);
+
+  // Step 4: Search & Discovery
+  switchTab('search', 3);
+  document.getElementById('search-query').value = 'Queen';
+  updateInspector("Tour Stage 4: Algorithm Search", "comps = 0; for song in songs: comps += 1", "Step 4: Executing Linear/Binary search to find songs...", "O(n)");
+  await executeSearch();
+  await sleep(2000);
+
+  // Step 5: Sorting CLL
+  switchTab('sort', 4);
+  updateInspector("Tour Stage 5: Bubble Sort & CLL Rebuild", "for i in n: for j in n-i: swap", "Step 5: Sorting by title and sequentially reconstructing circular pointers...", "O(n²)");
+  await executeSort('title');
+  await sleep(2000);
+
+  // Step 6: Delete & Stack Undo
+  switchTab('remove', 5);
+  updateInspector("Tour Stage 6: Stack Undo (LIFO)", "Stack.pop() -> CLL.restore()", "Step 6: Popping most recent action from LIFO Undo Stack...", "O(1)");
+  await sleep(1200);
+  await submitUndo();
+  await sleep(1500);
+
+  switchTab('player', 1);
+  toast('🎉 Connected DS Tour Completed Successfully!', 'success');
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── UTILITIES ───────────────────────────────────────────
+function escapeHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function escapeQuotes(s) {
+  return String(s || '').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+}
+
+// ── INITIALIZATION ──────────────────────────────────────
+loadPlaylist();
+fetchNowPlaying();
+setInterval(loadQueue, 5000);
+</script>
+</body>
+</html>
